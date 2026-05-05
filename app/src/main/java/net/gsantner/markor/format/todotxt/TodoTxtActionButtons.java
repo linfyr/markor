@@ -85,7 +85,7 @@ public class TodoTxtActionButtons extends ActionButtonBase {
                     if (wasDone) {
                         // Undo done: - [x] ... ✅ date -> - [ ] ... (remove done date if present)
                         runRegexReplaceAction(
-                                new ReplacePattern("(^\\s*-\\s*)\\[[Xx]\\](.*?)(?:\\s*" + TodoTxtTask.PATTERN_OB_DONE_DATE.pattern() + ")?\\s*$", "$1[ ]$2")
+                                new ReplacePattern(TodoTxtTask.PATTERN_OB_TOGGLE_UNDO_DONE, "$1[ ]$2")
                         );
                     } else {
                         // Mark done: - [ ] ... -> - [x] ... ✅ date
@@ -446,7 +446,7 @@ public class TodoTxtActionButtons extends ActionButtonBase {
 
         final DatePickerDialog.OnClickListener clear = (dialog, which) -> {
             if (isObsidian) {
-                runRegexReplaceAction(new ReplacePattern("\\s*" + TodoTxtTask.PATTERN_OB_DUE_DATE.pattern(), ""));
+                runRegexReplaceAction(new ReplacePattern(TodoTxtTask.PATTERN_OB_DUE_DATE_REMOVE, ""));
             } else {
                 runRegexReplaceAction(new ReplacePattern(TodoTxtTask.PATTERN_DUE_DATE, "$4"));
             }

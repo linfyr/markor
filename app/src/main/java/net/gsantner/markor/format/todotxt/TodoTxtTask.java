@@ -63,12 +63,20 @@ public class TodoTxtTask {
     public static final Pattern PATTERN_OB_DONE_DATE = Pattern.compile("✅\\s*(" + PT_DATE + ")");
     public static final Pattern PATTERN_OB_CREATED_DATE = Pattern.compile("➕\\s*(" + PT_DATE + ")");
     public static final Pattern PATTERN_OB_CANCELLED_DATE = Pattern.compile("❌\\s*(" + PT_DATE + ")");
-    public static final Pattern PATTERN_OB_RECURRENCE = Pattern.compile("🔁\\s*([^\n]+?)(?=\\s+(?:📅|⏳|🛫|✅|❌|➕|🔁|🔺|⏫|🔼|🔽|⏬)|\\s*$)");
+    public static final Pattern PATTERN_OB_RECURRENCE = Pattern.compile("🔁\\s*([^\n]+?)(?=\\s+(?:📅|⏳|🛫|✅|❌|➕|🔺|⏫|🔼|🔽|⏬)|\\s*$)");
     public static final Pattern PATTERN_OB_PRIORITY_HIGHEST = Pattern.compile("🔺"); // Obsidian highest priority -> A
     public static final Pattern PATTERN_OB_PRIORITY_HIGH = Pattern.compile("⏫");    // Obsidian high priority -> B
     public static final Pattern PATTERN_OB_PRIORITY_MEDIUM = Pattern.compile("🔼"); // Obsidian medium priority -> C
     public static final Pattern PATTERN_OB_PRIORITY_LOW = Pattern.compile("🔽");    // Obsidian low priority -> D
     public static final Pattern PATTERN_OB_PRIORITY_LOWEST = Pattern.compile("⏬"); // Obsidian lowest priority -> E
+    // Combined pattern to remove all Obsidian Tasks metadata in a single pass (for description stripping)
+    public static final Pattern PATTERN_OB_ALL_METADATA = Pattern.compile(
+            "(?:📅|⏳|🛫|✅|➕|❌)\\s*" + PT_DATE + "|🔁[^\n]*|(?:🔺|⏫|🔼|🔽|⏬)");
+    // Pattern to match and remove the Obsidian due date (including leading whitespace), for clearing
+    public static final Pattern PATTERN_OB_DUE_DATE_REMOVE = Pattern.compile("\\s*📅\\s*" + PT_DATE);
+    // Pattern to undo an Obsidian done task: matches - [x] ... ✅ date
+    public static final Pattern PATTERN_OB_TOGGLE_UNDO_DONE = Pattern.compile(
+            "(^\\s*-\\s*)\\[[Xx]\\](.*?)(?:\\s*✅\\s*" + PT_DATE + ")?\\s*$");
 
     public static final char PRIORITY_NONE = '~';
 
@@ -179,21 +187,10 @@ public class TodoTxtTask {
     public String getDescription() {
         if (description == null) {
             if (isObsidianTaskLine(line)) {
-                // For Obsidian format: strip markdown prefix and emoji metadata
+                // For Obsidian format: strip markdown prefix and all emoji metadata in two passes
                 description = line
                         .replaceAll(PATTERN_OB_TASK.pattern(), "")  // Strip - [ ] / - [x]
-                        .replaceAll("(?:" + PATTERN_OB_DUE_DATE.pattern()
-                                + "|" + PATTERN_OB_SCHEDULED_DATE.pattern()
-                                + "|" + PATTERN_OB_START_DATE.pattern()
-                                + "|" + PATTERN_OB_DONE_DATE.pattern()
-                                + "|" + PATTERN_OB_CREATED_DATE.pattern()
-                                + "|" + PATTERN_OB_CANCELLED_DATE.pattern() + ")", "")  // Strip date emojis + dates
-                        .replaceAll(PATTERN_OB_RECURRENCE.pattern(), "")  // Strip recurrence
-                        .replaceAll("(?:" + PATTERN_OB_PRIORITY_HIGHEST.pattern()
-                                + "|" + PATTERN_OB_PRIORITY_HIGH.pattern()
-                                + "|" + PATTERN_OB_PRIORITY_MEDIUM.pattern()
-                                + "|" + PATTERN_OB_PRIORITY_LOW.pattern()
-                                + "|" + PATTERN_OB_PRIORITY_LOWEST.pattern() + ")", "")  // Strip priority emojis
+                        .replaceAll(PATTERN_OB_ALL_METADATA.pattern(), "")  // Strip all emoji metadata
                         .trim();
             } else {
                 // The description is what is left when all structured parts of the task are removed
