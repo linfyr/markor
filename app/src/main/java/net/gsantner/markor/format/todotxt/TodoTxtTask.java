@@ -182,9 +182,18 @@ public class TodoTxtTask {
                 // For Obsidian format: strip markdown prefix and emoji metadata
                 description = line
                         .replaceAll(PATTERN_OB_TASK.pattern(), "")  // Strip - [ ] / - [x]
-                        .replaceAll("(?:📅|⏳|🛫|✅|❌|➕)\\s*\\d{4}-\\d{2}-\\d{2}", "")  // Strip date emojis + dates
-                        .replaceAll("🔁[^\n]*", "")  // Strip recurrence to end of content
-                        .replaceAll("(?:🔺|⏫|🔼|🔽|⏬)", "")  // Strip priority emojis
+                        .replaceAll("(?:" + PATTERN_OB_DUE_DATE.pattern()
+                                + "|" + PATTERN_OB_SCHEDULED_DATE.pattern()
+                                + "|" + PATTERN_OB_START_DATE.pattern()
+                                + "|" + PATTERN_OB_DONE_DATE.pattern()
+                                + "|" + PATTERN_OB_CREATED_DATE.pattern()
+                                + "|" + PATTERN_OB_CANCELLED_DATE.pattern() + ")", "")  // Strip date emojis + dates
+                        .replaceAll(PATTERN_OB_RECURRENCE.pattern(), "")  // Strip recurrence
+                        .replaceAll("(?:" + PATTERN_OB_PRIORITY_HIGHEST.pattern()
+                                + "|" + PATTERN_OB_PRIORITY_HIGH.pattern()
+                                + "|" + PATTERN_OB_PRIORITY_MEDIUM.pattern()
+                                + "|" + PATTERN_OB_PRIORITY_LOW.pattern()
+                                + "|" + PATTERN_OB_PRIORITY_LOWEST.pattern() + ")", "")  // Strip priority emojis
                         .trim();
             } else {
                 // The description is what is left when all structured parts of the task are removed
