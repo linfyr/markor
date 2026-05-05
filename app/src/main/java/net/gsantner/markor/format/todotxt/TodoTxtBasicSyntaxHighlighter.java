@@ -45,8 +45,26 @@ public class TodoTxtBasicSyntaxHighlighter extends SyntaxHighlighterBase {
         createColorSpanForMatches(TodoTxtTask.PATTERN_CREATION_DATE, _isDarkMode ? COLOR_DATE_DARK : COLOR_DATE_LIGHT, 1);
         createColorSpanForMatches(TodoTxtTask.PATTERN_DUE_DATE, COLOR_PRIORITY_A, 2, 3);
 
+        // Obsidian Tasks plugin format highlighting
+        // Highlight Obsidian priority emojis
+        createSpanForMatches(TodoTxtTask.PATTERN_OB_PRIORITY_HIGHEST, new HighlightSpan().setForeColor(COLOR_PRIORITY_A).setBold(true));
+        createSpanForMatches(TodoTxtTask.PATTERN_OB_PRIORITY_HIGH, new HighlightSpan().setForeColor(COLOR_PRIORITY_B).setBold(true));
+        createSpanForMatches(TodoTxtTask.PATTERN_OB_PRIORITY_MEDIUM, new HighlightSpan().setForeColor(COLOR_PRIORITY_C).setBold(true));
+        createSpanForMatches(TodoTxtTask.PATTERN_OB_PRIORITY_LOW, new HighlightSpan().setForeColor(COLOR_PRIORITY_D).setBold(true));
+        createSpanForMatches(TodoTxtTask.PATTERN_OB_PRIORITY_LOWEST, new HighlightSpan().setForeColor(COLOR_PRIORITY_E).setBold(true));
+        // Highlight Obsidian due date (📅 YYYY-MM-DD) - same color as todo.txt due date
+        createColorSpanForMatches(TodoTxtTask.PATTERN_OB_DUE_DATE, COLOR_PRIORITY_A, 1);
+        // Highlight other Obsidian date emojis + dates
+        createColorSpanForMatches(TodoTxtTask.PATTERN_OB_SCHEDULED_DATE, _isDarkMode ? COLOR_DATE_DARK : COLOR_DATE_LIGHT, 1);
+        createColorSpanForMatches(TodoTxtTask.PATTERN_OB_START_DATE, _isDarkMode ? COLOR_DATE_DARK : COLOR_DATE_LIGHT, 1);
+        createColorSpanForMatches(TodoTxtTask.PATTERN_OB_CREATED_DATE, _isDarkMode ? COLOR_DATE_DARK : COLOR_DATE_LIGHT, 1);
+        createColorSpanForMatches(TodoTxtTask.PATTERN_OB_DONE_DATE, _isDarkMode ? COLOR_DATE_DARK : COLOR_DATE_LIGHT, 1);
+        createColorSpanForMatches(TodoTxtTask.PATTERN_OB_CANCELLED_DATE, _isDarkMode ? COLOR_DATE_DARK : COLOR_DATE_LIGHT, 1);
+
         // Strike out done tasks
         // Note - as we now sort by start, projects, contexts, tags and due date will be highlighted for done tasks
         createSpanForMatches(TodoTxtTask.PATTERN_DONE, new HighlightSpan().setForeColor(_isDarkMode ? COLOR_DONE_DARK : COLOR_DONE_LIGHT).setStrike(true));
+        // Obsidian done tasks: - [x] ...
+        createSpanForMatches(TodoTxtTask.PATTERN_OB_DONE, new HighlightSpan().setForeColor(_isDarkMode ? COLOR_DONE_DARK : COLOR_DONE_LIGHT).setStrike(true));
     }
 }

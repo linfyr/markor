@@ -78,22 +78,40 @@ public class TodoTxtActionButtons extends ActionButtonBase {
 
         switch (action) {
             case R.string.abid_todotxt_toggle_done: {
-                final String doneMark = "x" + (_appSettings.isTodoAddCompletionDateEnabled() ? (" " + TodoTxtTask.getToday()) : "") + " ";
-                final String bodyWithPri = "(.*)(\\spri:([A-Z])(?=\\s|$))(.*)"; // +1 = pre, +2 = full tag, +3 = pri, +4 = post
-                final String doneWithDate = "^([Xx]\\s(?:" + TodoTxtTask.PT_DATE + "\\s)?)";
-                final String startingPriority = "^\\(([A-Z])\\)\\s";
-                runRegexReplaceAction(
-                        // If task not done and starts with a priority and contains a pri tag
-                        new ReplacePattern(startingPriority + bodyWithPri, doneMark + "$2 pri:$1$5"),
-                        // else if task not done and starts with a priority and does not contain a pri tag
-                        new ReplacePattern(startingPriority + "(.*)(\\s*)", doneMark + "$2 pri:$1"),
-                        // else if task is done and contains a pri tag
-                        new ReplacePattern(doneWithDate + bodyWithPri, "($4) $2$5"),
-                        // else if task is done and does not contain a pri tag
-                        new ReplacePattern(doneWithDate, ""),
-                        // else replace task start with 'x ...'
-                        new ReplacePattern("^", doneMark)
-                );
+                final boolean isObsidian = !selTasks.isEmpty() && TodoTxtTask.isObsidianTaskLine(selTasks.get(0).getLine());
+                if (isObsidian) {
+                    // Obsidian Tasks format: toggle between - [ ] and - [x]
+                    final boolean wasDone = selTasks.get(0).isDone();
+                    if (wasDone) {
+                        // Undo done: - [x] ... ✅ date -> - [ ] ... (remove done date if present)
+                        runRegexReplaceAction(
+                                new ReplacePattern("(^\\s*-\\s*)\\[[Xx]\\](.*?)(?:\\s*✅\\s*\\d{4}-\\d{2}-\\d{2})?\\s*$", "$1[ ]$2")
+                        );
+                    } else {
+                        // Mark done: - [ ] ... -> - [x] ... ✅ date
+                        final String doneDate = _appSettings.isTodoAddCompletionDateEnabled() ? (" ✅ " + TodoTxtTask.getToday()) : "";
+                        runRegexReplaceAction(
+                                new ReplacePattern("(^\\s*-\\s*)\\[\\s\\](.*?)\\s*$", "$1[x]$2" + doneDate)
+                        );
+                    }
+                } else {
+                    final String doneMark = "x" + (_appSettings.isTodoAddCompletionDateEnabled() ? (" " + TodoTxtTask.getToday()) : "") + " ";
+                    final String bodyWithPri = "(.*)(\\spri:([A-Z])(?=\\s|$))(.*)"; // +1 = pre, +2 = full tag, +3 = pri, +4 = post
+                    final String doneWithDate = "^([Xx]\\s(?:" + TodoTxtTask.PT_DATE + "\\s)?)";
+                    final String startingPriority = "^\\(([A-Z])\\)\\s";
+                    runRegexReplaceAction(
+                            // If task not done and starts with a priority and contains a pri tag
+                            new ReplacePattern(startingPriority + bodyWithPri, doneMark + "$2 pri:$1$5"),
+                            // else if task not done and starts with a priority and does not contain a pri tag
+                            new ReplacePattern(startingPriority + "(.*)(\\s*)", doneMark + "$2 pri:$1"),
+                            // else if task is done and contains a pri tag
+                            new ReplacePattern(doneWithDate + bodyWithPri, "($4) $2$5"),
+                            // else if task is done and does not contain a pri tag
+                            new ReplacePattern(doneWithDate, ""),
+                            // else replace task start with 'x ...'
+                            new ReplacePattern("^", doneMark)
+                    );
+                }
                 return true;
             }
             case R.string.abid_todotxt_add_context: {
@@ -396,24 +414,42 @@ public class TodoTxtActionButtons extends ActionButtonBase {
 
 
     private void setDueDate(final int offset) {
-        final String dueString = TodoTxtTask.getSelectedTasks(_hlEditor).get(0).getDueDate();
+        final List<TodoTxtTask> selTasks = TodoTxtTask.getSelectedTasks(_hlEditor);
+        final TodoTxtTask firstTask = selTasks.isEmpty() ? null : selTasks.get(0);
+        final boolean isObsidian = firstTask != null && TodoTxtTask.isObsidianTaskLine(firstTask.getLine());
+        final String dueString = firstTask != null ? firstTask.getDueDate() : "";
         Calendar initDate = parseDateString(dueString, Calendar.getInstance());
         initDate.add(Calendar.DAY_OF_MONTH, (dueString == null || dueString.isEmpty()) ? offset : 0);
 
         final DatePickerDialog.OnDateSetListener listener = (_view, year, month, day) -> {
             Calendar fmtCal = Calendar.getInstance();
             fmtCal.set(year, month, day);
-            final String newDue = "due:" + TodoTxtTask.DATEF_YYYY_MM_DD.format(fmtCal.getTime());
-            runRegexReplaceAction(
-                    // Replace due date
-                    new ReplacePattern(TodoTxtTask.PATTERN_DUE_DATE, "$1" + newDue + "$4"),
-                    // Add due date to end if none already exists. Will correctly handle trailing whitespace.
-                    new ReplacePattern("\\s*$", " " + newDue)
-            );
+            final String dateStr = TodoTxtTask.DATEF_YYYY_MM_DD.format(fmtCal.getTime());
+            if (isObsidian) {
+                final String newDue = "📅 " + dateStr;
+                runRegexReplaceAction(
+                        // Replace existing Obsidian due date
+                        new ReplacePattern(TodoTxtTask.PATTERN_OB_DUE_DATE, newDue),
+                        // Add Obsidian due date to end if none already exists
+                        new ReplacePattern("\\s*$", " " + newDue)
+                );
+            } else {
+                final String newDue = "due:" + dateStr;
+                runRegexReplaceAction(
+                        // Replace due date
+                        new ReplacePattern(TodoTxtTask.PATTERN_DUE_DATE, "$1" + newDue + "$4"),
+                        // Add due date to end if none already exists. Will correctly handle trailing whitespace.
+                        new ReplacePattern("\\s*$", " " + newDue)
+                );
+            }
         };
 
         final DatePickerDialog.OnClickListener clear = (dialog, which) -> {
-            runRegexReplaceAction(new ReplacePattern(TodoTxtTask.PATTERN_DUE_DATE, "$4"));
+            if (isObsidian) {
+                runRegexReplaceAction(new ReplacePattern("\\s*📅\\s*\\d{4}-\\d{2}-\\d{2}", ""));
+            } else {
+                runRegexReplaceAction(new ReplacePattern(TodoTxtTask.PATTERN_DUE_DATE, "$4"));
+            }
         };
 
         new DateFragment()

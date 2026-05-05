@@ -54,6 +54,22 @@ public class TodoTxtTask {
     public static final Pattern PATTERN_COMPLETION_DATE = Pattern.compile("(?:^|\\n)(?:[Xx] )(" + PT_DATE + ")?");
     public static final Pattern PATTERN_CREATION_DATE = Pattern.compile("(?:^|\\n)(?:\\([A-Za-z]\\)\\s)?(?:[Xx] " + PT_DATE + " )?(" + PT_DATE + ")");
 
+    // Obsidian Tasks plugin format patterns
+    public static final Pattern PATTERN_OB_DONE = Pattern.compile("(?m)^\\s*-\\s*\\[[Xx]\\]");
+    public static final Pattern PATTERN_OB_TASK = Pattern.compile("(?m)^\\s*-\\s*\\[[ xX]\\]");
+    public static final Pattern PATTERN_OB_DUE_DATE = Pattern.compile("📅\\s*(" + PT_DATE + ")");
+    public static final Pattern PATTERN_OB_SCHEDULED_DATE = Pattern.compile("⏳\\s*(" + PT_DATE + ")");
+    public static final Pattern PATTERN_OB_START_DATE = Pattern.compile("🛫\\s*(" + PT_DATE + ")");
+    public static final Pattern PATTERN_OB_DONE_DATE = Pattern.compile("✅\\s*(" + PT_DATE + ")");
+    public static final Pattern PATTERN_OB_CREATED_DATE = Pattern.compile("➕\\s*(" + PT_DATE + ")");
+    public static final Pattern PATTERN_OB_CANCELLED_DATE = Pattern.compile("❌\\s*(" + PT_DATE + ")");
+    public static final Pattern PATTERN_OB_RECURRENCE = Pattern.compile("🔁\\s*([^\n]+?)(?=\\s+(?:📅|⏳|🛫|✅|❌|➕|🔁|🔺|⏫|🔼|🔽|⏬)|\\s*$)");
+    public static final Pattern PATTERN_OB_PRIORITY_HIGHEST = Pattern.compile("🔺"); // Obsidian highest priority -> A
+    public static final Pattern PATTERN_OB_PRIORITY_HIGH = Pattern.compile("⏫");    // Obsidian high priority -> B
+    public static final Pattern PATTERN_OB_PRIORITY_MEDIUM = Pattern.compile("🔼"); // Obsidian medium priority -> C
+    public static final Pattern PATTERN_OB_PRIORITY_LOW = Pattern.compile("🔽");    // Obsidian low priority -> D
+    public static final Pattern PATTERN_OB_PRIORITY_LOWEST = Pattern.compile("⏬"); // Obsidian lowest priority -> E
+
     public static final char PRIORITY_NONE = '~';
 
     public enum TodoDueState {
@@ -155,21 +171,31 @@ public class TodoTxtTask {
 
     public boolean isDone() {
         if (done == null) {
-            done = isPatternFindable(line, PATTERN_DONE);
+            done = isPatternFindable(line, PATTERN_DONE) || isPatternFindable(line, PATTERN_OB_DONE);
         }
         return done;
     }
 
     public String getDescription() {
         if (description == null) {
-            // The description is what is left when all structured parts of the task are removed
-            description = getLine()
-                    .replaceAll(PATTERN_COMPLETION_DATE.pattern(), "")
-                    .replaceAll(PATTERN_PRIORITY_ANY.pattern(), "")
-                    .replaceAll(PATTERN_CREATION_DATE.pattern(), "")
-                    .replaceAll(PATTERN_CONTEXTS.pattern(), "")
-                    .replaceAll(PATTERN_PROJECTS.pattern(), "")
-                    .replaceAll(PATTERN_KEY_VALUE_PAIRS.pattern(), "");
+            if (isObsidianTaskLine(line)) {
+                // For Obsidian format: strip markdown prefix and emoji metadata
+                description = line
+                        .replaceAll(PATTERN_OB_TASK.pattern(), "")  // Strip - [ ] / - [x]
+                        .replaceAll("(?:📅|⏳|🛫|✅|❌|➕)\\s*\\d{4}-\\d{2}-\\d{2}", "")  // Strip date emojis + dates
+                        .replaceAll("🔁[^\n]*", "")  // Strip recurrence to end of content
+                        .replaceAll("(?:🔺|⏫|🔼|🔽|⏬)", "")  // Strip priority emojis
+                        .trim();
+            } else {
+                // The description is what is left when all structured parts of the task are removed
+                description = getLine()
+                        .replaceAll(PATTERN_COMPLETION_DATE.pattern(), "")
+                        .replaceAll(PATTERN_PRIORITY_ANY.pattern(), "")
+                        .replaceAll(PATTERN_CREATION_DATE.pattern(), "")
+                        .replaceAll(PATTERN_CONTEXTS.pattern(), "")
+                        .replaceAll(PATTERN_PROJECTS.pattern(), "")
+                        .replaceAll(PATTERN_KEY_VALUE_PAIRS.pattern(), "");
+            }
         }
         return description;
     }
@@ -177,7 +203,21 @@ public class TodoTxtTask {
     public char getPriority() {
         if (priority == null) {
             final String ret = parseOneValueOrDefault(line, PATTERN_PRIORITY_ANY, "");
-            priority = ret.isEmpty() ? PRIORITY_NONE : Character.toUpperCase(ret.charAt(0));
+            if (!ret.isEmpty()) {
+                priority = Character.toUpperCase(ret.charAt(0));
+            } else if (isPatternFindable(line, PATTERN_OB_PRIORITY_HIGHEST)) {
+                priority = 'A';
+            } else if (isPatternFindable(line, PATTERN_OB_PRIORITY_HIGH)) {
+                priority = 'B';
+            } else if (isPatternFindable(line, PATTERN_OB_PRIORITY_MEDIUM)) {
+                priority = 'C';
+            } else if (isPatternFindable(line, PATTERN_OB_PRIORITY_LOW)) {
+                priority = 'D';
+            } else if (isPatternFindable(line, PATTERN_OB_PRIORITY_LOWEST)) {
+                priority = 'E';
+            } else {
+                priority = PRIORITY_NONE;
+            }
         }
         return priority;
     }
@@ -213,7 +253,14 @@ public class TodoTxtTask {
 
     public String getDueDate(final String defaultValue) {
         if (dueDate == null) {
-            dueDate = parseOneValueOrDefault(line, PATTERN_DUE_DATE, 3, defaultValue);
+            // Try Obsidian Tasks format first (📅 YYYY-MM-DD)
+            final String obDue = parseOneValueOrDefault(line, PATTERN_OB_DUE_DATE, 1, null);
+            if (obDue != null) {
+                dueDate = obDue;
+            } else {
+                // Fall back to todo.txt format (due:YYYY-MM-DD)
+                dueDate = parseOneValueOrDefault(line, PATTERN_DUE_DATE, 3, defaultValue);
+            }
         }
         return dueDate;
     }
@@ -240,6 +287,11 @@ public class TodoTxtTask {
             completionDate = parseOneValueOrDefault(line, PATTERN_COMPLETION_DATE, defaultValue);
         }
         return completionDate;
+    }
+
+    // Returns true if this task line uses Obsidian Tasks format (- [ ] or - [x])
+    public static boolean isObsidianTaskLine(final String line) {
+        return isPatternFindable(line, PATTERN_OB_TASK);
     }
 
     // Only captures the first group of each match
